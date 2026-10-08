@@ -1,0 +1,21 @@
+# ==============================================================================
+# Nexa Loan Management System - Logrotate Configuration
+# ==============================================================================
+# Target: /etc/logrotate.d/nexa-lms
+# Permissions: chmod 644 /etc/logrotate.d/nexa-lms
+# Test: logrotate -d /etc/logrotate.d/nexa-lms
+# ==============================================================================
+
+/var/log/nexa-lms/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 0640 www-data adm
+    sharedscripts
+    copytruncate
+    dateext
+    dateformat -%Y%m%d
+}

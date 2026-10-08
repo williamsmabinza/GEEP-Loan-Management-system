@@ -1,0 +1,1008 @@
+// ==============================================================================
+// Nexa Loan Management System - Complete Production Relational Schema
+// Database Engine: MySQL 8.0+
+// ORM: Prisma 6.x
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  LOCKED
+  PENDING_VERIFICATION
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum ProfileStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  BLACKLISTED
+  DECEASED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  SEPARATED
+}
+
+enum IdentificationType {
+  NATIONAL_ID
+  PASSPORT
+  DRIVERS_LICENSE
+  VOTER_ID
+  TAX_IDENTIFICATION_NUMBER
+  OTHER
+}
+
+enum EmploymentType {
+  FULL_TIME_SALARIED
+  PART_TIME_SALARIED
+  SELF_EMPLOYED
+  BUSINESS_OWNER
+  CONTRACTOR
+  RETIRED
+  UNEMPLOYED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum StaffEmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  PROBATION
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+enum InterestCalculationMethod {
+  FLAT_RATE
+  REDUCING_BALANCE_EQUAL_INSTALLMENTS
+  REDUCING_BALANCE_EQUAL_PRINCIPAL
+  COMPOUND_INTEREST
+  SIMPLE_INTEREST
+}
+
+enum RepaymentFrequency {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+  BULLET_AT_MATURITY
+}
+
+enum FeeType {
+  FIXED_AMOUNT
+  PERCENTAGE_OF_PRINCIPAL
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum LoanApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPRAISAL_IN_PROGRESS
+  COMMITTEE_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum LoanStatus {
+  PENDING_DISBURSEMENT
+  ACTIVE
+  IN_ARREARS
+  DELINQUENT
+  DEFAULTED
+  RESTRUCTURED
+  CLOSED_PAID_OFF
+  WRITTEN_OFF
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CHEQUE
+  ONLINE_CARD
+  OTHER
+}
+
+enum DisbursementStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+  REVERSED
+}
+
+enum RepaymentScheduleStatus {
+  SCHEDULED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum PaymentAllocationStatus {
+  UNALLOCATED
+  PARTIALLY_ALLOCATED
+  FULLY_ALLOCATED
+  REVERSED
+}
+
+enum PenaltyStatus {
+  ASSESSED
+  PARTIALLY_PAID
+  PAID
+  WAIVED
+  CANCELLED
+}
+
+enum PenaltyType {
+  LATE_PAYMENT
+  DEFAULT
+  DISHONOURED_PAYMENT
+  COVENANT_BREACH
+}
+
+enum CollateralType {
+  REAL_ESTATE
+  VEHICLE
+  EQUIPMENT
+  FINANCIAL_ASSET
+  INVENTORY
+  LIVESTOCK
+  CHATTEL
+  OTHER
+}
+
+enum CollateralStatus {
+  PLEDGED
+  DEPOSITED
+  HELD
+  RELEASED
+  FORFEITED
+  LIQUIDATED
+}
+
+enum GuarantorStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  RELEASED
+}
+
+enum DocumentType {
+  NATIONAL_ID
+  PASSPORT
+  PROOF_OF_RESIDENCE
+  PAYSLIP
+  BANK_STATEMENT
+  TAX_RETURN
+  BUSINESS_REGISTRATION
+  COLLATERAL_TITLE_DEED
+  VEHICLE_LOGBOOK
+  GUARANTOR_FORM
+  LOAN_AGREEMENT
+  CREDIT_REPORT
+  OTHER
+}
+
+enum DocumentVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  IN_APP
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+enum SystemSettingGroup {
+  GENERAL
+  LOAN_DEFAULTS
+  ACCOUNTING
+  NOTIFICATIONS
+  SECURITY
+}
+
+// ------------------------------------------------------------------------------
+// 1. User & Access Control (RBAC)
+// ------------------------------------------------------------------------------
+
+model Role {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  name        String   @unique @db.VarChar(80) // e.g. "Super Administrator", "Loan Officer", "Customer"
+  code        String   @unique @db.VarChar(50) // e.g. "SUPER_ADMIN", "LOAN_OFFICER", "CUSTOMER"
+  description String?  @db.VarChar(255)
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  code        String   @unique @db.VarChar(80) // e.g. "loan:create", "loan:approve", "repayment:collect"
+  name        String   @db.VarChar(120)
+  module      String   @db.VarChar(60) // e.g. "LOANS", "CUSTOMERS", "REPAYMENTS", "REPORTS"
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  roleId       String   @db.VarChar(36)
+  permissionId String   @db.VarChar(36)
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id                     String     @id @default(uuid()) @db.VarChar(36)
+  email                  String     @unique @db.VarChar(191)
+  passwordHash           String     @db.VarChar(255)
+  roleId                 String     @db.VarChar(36)
+  status                 UserStatus @default(ACTIVE)
+  lastLoginAt            DateTime?
+  loginAttempts          Int        @default(0)
+  lockedUntil            DateTime?
+  refreshTokenHash       String?    @db.VarChar(255)
+  passwordResetTokenHash String?    @db.VarChar(255)
+  passwordResetExpiresAt DateTime?
+  deactivatedAt          DateTime?
+  deactivatedReason      String?    @db.VarChar(255)
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+
+  role          Role            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  staffProfile  Staff?
+  customer      Customer?
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  systemSettings SystemSetting[]
+
+  @@index([roleId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+// ------------------------------------------------------------------------------
+// 2. Organization: Branches & Staff
+// ------------------------------------------------------------------------------
+
+model Branch {
+  id          String       @id @default(uuid()) @db.VarChar(36)
+  branchCode  String       @unique @db.VarChar(30)
+  name        String       @db.VarChar(120)
+  phone       String?      @db.VarChar(40)
+  email       String?      @db.VarChar(191)
+  addressLine1 String      @db.VarChar(255)
+  addressLine2 String?     @db.VarChar(255)
+  city        String       @db.VarChar(100)
+  state       String       @db.VarChar(100)
+  postalCode  String?      @db.VarChar(20)
+  country     String       @default("US") @db.VarChar(60)
+  status      BranchStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  staffMembers     Staff[]
+  customers        Customer[]
+  loanApplications LoanApplication[]
+  loans            Loan[]
+
+  @@index([status])
+  @@map("branches")
+}
+
+model Staff {
+  id               String                @id @default(uuid()) @db.VarChar(36)
+  userId           String                @unique @db.VarChar(36)
+  branchId         String                @db.VarChar(36)
+  staffNumber      String                @unique @db.VarChar(40)
+  firstName        String                @db.VarChar(80)
+  lastName         String                @db.VarChar(80)
+  middleName       String?               @db.VarChar(80)
+  phone            String                @db.VarChar(40)
+  department       String                @db.VarChar(80)
+  designation      String                @db.VarChar(80)
+  employmentStatus StaffEmploymentStatus @default(ACTIVE)
+  dateOfHire       DateTime              @db.Date
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch           Branch                @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  assignedApplications   LoanApplication[] @relation("LoanOfficerApplications")
+  appraisedApplications  LoanApplication[] @relation("CreditOfficerApplications")
+  approvedApplications   LoanApplication[] @relation("ApprovedApplications")
+  disbursedLoans         LoanDisbursement[] @relation("DisbursedByStaff")
+  collectedPayments      Payment[]          @relation("CollectedByStaff")
+  waivedPenalties        Penalty[]          @relation("WaivedByStaff")
+  verifiedDocuments      CustomerDocument[] @relation("VerifiedByStaff")
+
+  @@index([branchId])
+  @@index([employmentStatus])
+  @@map("staff")
+}
+
+// ------------------------------------------------------------------------------
+// 3. Customer Profile & Demographics
+// ------------------------------------------------------------------------------
+
+model Customer {
+  id             String        @id @default(uuid()) @db.VarChar(36)
+  customerNumber String        @unique @db.VarChar(40)
+  userId         String?       @unique @db.VarChar(36)
+  branchId       String        @db.VarChar(36)
+
+  // Personal Information
+  firstName      String        @db.VarChar(80)
+  lastName       String        @db.VarChar(80)
+  middleName     String?       @db.VarChar(80)
+  dateOfBirth    DateTime      @db.Date
+  gender         Gender
+  maritalStatus  MaritalStatus @default(SINGLE)
+
+  // Contact Information
+  email          String        @unique @db.VarChar(191)
+  phone          String        @db.VarChar(40)
+  alternatePhone String?       @db.VarChar(40)
+
+  // Identification Information
+  idType         IdentificationType @default(NATIONAL_ID)
+  idNumber       String             @db.VarChar(80)
+  idIssueDate    DateTime?          @db.Date
+  idExpiryDate   DateTime?          @db.Date
+
+  // Residential Address
+  addressLine1   String        @db.VarChar(255)
+  addressLine2   String?       @db.VarChar(255)
+  city           String        @db.VarChar(100)
+  state          String        @db.VarChar(100)
+  postalCode     String?       @db.VarChar(20)
+  country        String        @default("US") @db.VarChar(60)
+
+  // Employment & Financial Information
+  employmentType EmploymentType @default(FULL_TIME_SALARIED)
+  employerName   String?        @db.VarChar(150)
+  jobTitle       String?        @db.VarChar(100)
+  monthlyIncome  Decimal        @default(0.00) @db.Decimal(16, 2)
+  businessName   String?        @db.VarChar(150)
+  businessAddress String?       @db.VarChar(255)
+
+  // Emergency Contact
+  emergencyContactName         String? @db.VarChar(120)
+  emergencyContactRelationship String? @db.VarChar(60)
+  emergencyContactPhone        String? @db.VarChar(40)
+
+  // Status & Credit Flags
+  profileStatus  ProfileStatus @default(ACTIVE)
+  kycStatus      KycStatus     @default(PENDING)
+  creditScore    Int?          @db.Int
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  branch           Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  applications     LoanApplication[]
+  loans            Loan[]
+  payments         Payment[]
+  documents        CustomerDocument[]
+  collaterals      Collateral[]
+  guaranteedLoans  LoanGuarantor[]    @relation("CustomerAsGuarantor")
+  notifications    Notification[]
+
+  @@unique([idType, idNumber])
+  @@index([branchId])
+  @@index([profileStatus])
+  @@index([kycStatus])
+  @@index([phone])
+  @@index([lastName, firstName])
+  @@map("customers")
+}
+
+// ------------------------------------------------------------------------------
+// 4. Loan Products & Configurable Interest Tiers
+// ------------------------------------------------------------------------------
+
+model LoanProduct {
+  id                       String                    @id @default(uuid()) @db.VarChar(36)
+  code                     String                    @unique @db.VarChar(50)
+  name                     String                    @db.VarChar(140)
+  description              String?                   @db.Text
+  minAmount                Decimal                   @db.Decimal(16, 2)
+  maxAmount                Decimal                   @db.Decimal(16, 2)
+  minTermMonths            Int                       @db.Int
+  maxTermMonths            Int                       @db.Int
+  defaultInterestRate      Decimal                   @db.Decimal(6, 4) // e.g. 0.0875 for 8.75% or 8.7500
+  interestCalculationMethod InterestCalculationMethod @default(REDUCING_BALANCE_EQUAL_INSTALLMENTS)
+  repaymentFrequency       RepaymentFrequency        @default(MONTHLY)
+
+  // Fees
+  processingFeeType        FeeType                   @default(PERCENTAGE_OF_PRINCIPAL)
+  processingFeeValue       Decimal                   @default(0.00) @db.Decimal(16, 2)
+  insuranceFeeType         FeeType                   @default(PERCENTAGE_OF_PRINCIPAL)
+  insuranceFeeValue        Decimal                   @default(0.00) @db.Decimal(16, 2)
+
+  // Penalties & Grace Period
+  penaltyRate              Decimal                   @default(0.0500) @db.Decimal(6, 4)
+  gracePeriodDays          Int                       @default(5) @db.Int
+  principalGracePeriodMonths Int                     @default(0) @db.Int
+
+  status                   ProductStatus             @default(ACTIVE)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+
+  interestRateTiers        InterestRate[]
+  applications             LoanApplication[]
+  loans                    Loan[]
+
+  @@index([status])
+  @@map("loan_products")
+}
+
+model InterestRate {
+  id            String      @id @default(uuid()) @db.VarChar(36)
+  loanProductId String      @db.VarChar(36)
+  tierName      String      @db.VarChar(80)
+  minAmount     Decimal     @db.Decimal(16, 2)
+  maxAmount     Decimal     @db.Decimal(16, 2)
+  minTermMonths Int         @db.Int
+  maxTermMonths Int         @db.Int
+  rate          Decimal     @db.Decimal(6, 4)
+  effectiveFrom DateTime    @db.Date
+  effectiveTo   DateTime?   @db.Date
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  loanProduct LoanProduct @relation(fields: [loanProductId], references: [id], onDelete: Cascade)
+
+  @@index([loanProductId])
+  @@index([isActive])
+  @@map("interest_rates")
+}
+
+// ------------------------------------------------------------------------------
+// 5. Loan Applications, Appraisal & Approvals
+// ------------------------------------------------------------------------------
+
+model LoanApplication {
+  id                   String                @id @default(uuid()) @db.VarChar(36)
+  applicationNumber    String                @unique @db.VarChar(40)
+  customerId           String                @db.VarChar(36)
+  loanProductId        String                @db.VarChar(36)
+  branchId             String                @db.VarChar(36)
+
+  requestedAmount      Decimal               @db.Decimal(16, 2)
+  requestedTermMonths  Int                   @db.Int
+  purpose              String                @db.Text
+  applicationDate      DateTime              @default(now())
+  status               LoanApplicationStatus @default(SUBMITTED)
+
+  // Assigned Personnel
+  loanOfficerId        String?               @db.VarChar(36)
+  creditOfficerId      String?               @db.VarChar(36)
+
+  // Approval Information
+  approvedByStaffId    String?               @db.VarChar(36)
+  approvedAmount       Decimal?              @db.Decimal(16, 2)
+  approvedTermMonths   Int?                  @db.Int
+  approvedInterestRate Decimal?              @db.Decimal(6, 4)
+  approvalDate         DateTime?
+  approvalNotes        String?               @db.Text
+
+  // Rejection Information
+  rejectionReason      String?               @db.Text
+  rejectionDate        DateTime?
+
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  loanProduct          LoanProduct           @relation(fields: [loanProductId], references: [id], onDelete: Restrict)
+  branch               Branch                @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  loanOfficer          Staff?                @relation("LoanOfficerApplications", fields: [loanOfficerId], references: [id], onDelete: SetNull)
+  creditOfficer        Staff?                @relation("CreditOfficerApplications", fields: [creditOfficerId], references: [id], onDelete: SetNull)
+  approvedByStaff      Staff?                @relation("ApprovedApplications", fields: [approvedByStaffId], references: [id], onDelete: SetNull)
+
+  loan                 Loan?
+  guarantors           LoanGuarantor[]
+  collaterals          Collateral[]
+  documents            CustomerDocument[]
+
+  @@index([customerId])
+  @@index([loanProductId])
+  @@index([branchId])
+  @@index([status])
+  @@index([applicationDate])
+  @@index([loanOfficerId])
+  @@map("loan_applications")
+}
+
+// ------------------------------------------------------------------------------
+// 6. Master Loan Ledger
+// ------------------------------------------------------------------------------
+
+model Loan {
+  id                       String             @id @default(uuid()) @db.VarChar(36)
+  loanNumber               String             @unique @db.VarChar(40)
+  customerId               String             @db.VarChar(36)
+  applicationId            String?            @unique @db.VarChar(36)
+  loanProductId            String             @db.VarChar(36)
+  branchId                 String             @db.VarChar(36)
+
+  // Financial Principal & Rates
+  principalAmount          Decimal            @db.Decimal(16, 2)
+  interestRate             Decimal            @db.Decimal(6, 4)
+  termMonths               Int                @db.Int
+  repaymentFrequency       RepaymentFrequency @default(MONTHLY)
+
+  // Calculated Aggregate Totals
+  totalInterestExpected    Decimal            @db.Decimal(16, 2)
+  totalFeesExpected        Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalPenaltiesAccrued    Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalAmountExpected      Decimal            @db.Decimal(16, 2)
+
+  // Outstanding Balances
+  outstandingPrincipal     Decimal            @db.Decimal(16, 2)
+  outstandingInterest      Decimal            @db.Decimal(16, 2)
+  outstandingFees          Decimal            @default(0.00) @db.Decimal(16, 2)
+  outstandingPenalties     Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalOutstandingBalance  Decimal            @db.Decimal(16, 2)
+
+  // Cumulative Paid Amounts
+  totalPaidPrincipal       Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalPaidInterest        Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalPaidFees            Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalPaidPenalties       Decimal            @default(0.00) @db.Decimal(16, 2)
+  totalPaidAmount          Decimal            @default(0.00) @db.Decimal(16, 2)
+
+  monthlyInstallment       Decimal            @db.Decimal(16, 2)
+
+  // Status & Lifecycle Dates
+  status                   LoanStatus         @default(PENDING_DISBURSEMENT)
+  approvalDate             DateTime?
+  disbursementDate         DateTime?
+  maturityDate             DateTime?          @db.Date
+  closedDate               DateTime?
+
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  customer                 Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  application              LoanApplication?   @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  loanProduct              LoanProduct        @relation(fields: [loanProductId], references: [id], onDelete: Restrict)
+  branch                   Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  disbursements            LoanDisbursement[]
+  repaymentSchedules       RepaymentSchedule[]
+  payments                 Payment[]
+  penalties                Penalty[]
+  guarantors               LoanGuarantor[]
+  collaterals              Collateral[]
+  documents                CustomerDocument[]
+
+  @@index([customerId])
+  @@index([loanProductId])
+  @@index([branchId])
+  @@index([status])
+  @@index([disbursementDate])
+  @@index([maturityDate])
+  @@map("loans")
+}
+
+// ------------------------------------------------------------------------------
+// 7. Security: Guarantors & Collateral
+// ------------------------------------------------------------------------------
+
+model LoanGuarantor {
+  id                String          @id @default(uuid()) @db.VarChar(36)
+  loanId            String?         @db.VarChar(36)
+  loanApplicationId String?         @db.VarChar(36)
+  customerId        String?         @db.VarChar(36) // Linked if guarantor is an existing customer
+
+  // Third-party guarantor profile
+  name              String          @db.VarChar(120)
+  idNumber          String          @db.VarChar(60)
+  phone             String          @db.VarChar(40)
+  email             String?         @db.VarChar(191)
+  relationship      String          @db.VarChar(60)
+  employerName      String?         @db.VarChar(140)
+  monthlyIncome     Decimal         @default(0.00) @db.Decimal(16, 2)
+
+  guaranteedAmount  Decimal         @db.Decimal(16, 2)
+  status            GuarantorStatus @default(PENDING)
+  notes             String?         @db.Text
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  loan              Loan?            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanApplication   LoanApplication? @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+  customer          Customer?        @relation("CustomerAsGuarantor", fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+  @@index([loanApplicationId])
+  @@index([customerId])
+  @@index([status])
+  @@map("loan_guarantors")
+}
+
+model Collateral {
+  id                   String           @id @default(uuid()) @db.VarChar(36)
+  loanId               String?          @db.VarChar(36)
+  loanApplicationId    String?          @db.VarChar(36)
+  customerId           String           @db.VarChar(36)
+
+  collateralType       CollateralType   @default(VEHICLE)
+  description          String           @db.Text
+  serialOrRegistrationNumber String?    @db.VarChar(100)
+  valuationAmount      Decimal          @db.Decimal(16, 2)
+  valuationDate        DateTime         @db.Date
+  valuerName           String?          @db.VarChar(120)
+  pledgedAmount        Decimal          @db.Decimal(16, 2)
+  status               CollateralStatus @default(PLEDGED)
+  storageLocation      String?          @db.VarChar(255)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  loan                 Loan?            @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loanApplication      LoanApplication? @relation(fields: [loanApplicationId], references: [id], onDelete: Cascade)
+  customer             Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([loanId])
+  @@index([loanApplicationId])
+  @@index([customerId])
+  @@index([collateralType])
+  @@index([status])
+  @@map("collaterals")
+}
+
+// ------------------------------------------------------------------------------
+// 8. Capital Disbursements
+// ------------------------------------------------------------------------------
+
+model LoanDisbursement {
+  id                    String             @id @default(uuid()) @db.VarChar(36)
+  disbursementReference String             @unique @db.VarChar(60)
+  loanId                String             @db.VarChar(36)
+  amount                Decimal            @db.Decimal(16, 2)
+  disbursementDate      DateTime           @default(now())
+  paymentMethod         PaymentMethod      @default(BANK_TRANSFER)
+  channelDetails        String?            @db.VarChar(120) // e.g. "Chase Bank ACH", "M-Pesa B2C"
+  destinationAccount    String?            @db.VarChar(100) // Masked account or phone number
+  disbursedByStaffId    String?            @db.VarChar(36)
+  status                DisbursementStatus @default(PROCESSED)
+  notes                 String?            @db.Text
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  loan                  Loan               @relation(fields: [loanId], references: [id], onDelete: Restrict)
+  disbursedByStaff      Staff?             @relation("DisbursedByStaff", fields: [disbursedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+  @@index([disbursementDate])
+  @@index([status])
+  @@map("loan_disbursements")
+}
+
+// ------------------------------------------------------------------------------
+// 9. Repayment Schedules & Amortization
+// ------------------------------------------------------------------------------
+
+model RepaymentSchedule {
+  id                String                  @id @default(uuid()) @db.VarChar(36)
+  loanId            String                  @db.VarChar(36)
+  installmentNumber Int                     @db.Int
+  dueDate           DateTime                @db.Date
+
+  // Expected Due Amounts
+  principalDue      Decimal                 @db.Decimal(16, 2)
+  interestDue       Decimal                 @db.Decimal(16, 2)
+  feesDue           Decimal                 @default(0.00) @db.Decimal(16, 2)
+  penaltyDue        Decimal                 @default(0.00) @db.Decimal(16, 2)
+  totalDue          Decimal                 @db.Decimal(16, 2)
+
+  // Paid Amounts
+  principalPaid     Decimal                 @default(0.00) @db.Decimal(16, 2)
+  interestPaid      Decimal                 @default(0.00) @db.Decimal(16, 2)
+  feesPaid          Decimal                 @default(0.00) @db.Decimal(16, 2)
+  penaltyPaid       Decimal                 @default(0.00) @db.Decimal(16, 2)
+  totalPaid         Decimal                 @default(0.00) @db.Decimal(16, 2)
+
+  outstandingAmount Decimal                 @db.Decimal(16, 2)
+  status            RepaymentScheduleStatus @default(SCHEDULED)
+  paidDate          DateTime?
+
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  loan              Loan                    @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  paymentAllocations PaymentAllocation[]
+  penalties         Penalty[]
+
+  @@unique([loanId, installmentNumber])
+  @@index([loanId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("repayment_schedules")
+}
+
+// ------------------------------------------------------------------------------
+// 10. Payments & Multi-component Allocations
+// ------------------------------------------------------------------------------
+
+model Payment {
+  id                   String                  @id @default(uuid()) @db.VarChar(36)
+  paymentReference     String                  @unique @db.VarChar(60)
+  receiptNumber        String                  @unique @db.VarChar(60)
+  customerId           String                  @db.VarChar(36)
+  loanId               String                  @db.VarChar(36)
+
+  amount               Decimal                 @db.Decimal(16, 2)
+  paymentMethod        PaymentMethod           @default(BANK_TRANSFER)
+  transactionReference String?                 @db.VarChar(100) // Bank ref / Mobile money TXN ID
+  paymentDate          DateTime                @default(now())
+  receivedByStaffId    String?                 @db.VarChar(36)
+
+  allocationStatus     PaymentAllocationStatus @default(UNALLOCATED)
+  notes                String?                 @db.VarChar(255)
+
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  customer             Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  loan                 Loan                    @relation(fields: [loanId], references: [id], onDelete: Restrict)
+  receivedByStaff      Staff?                  @relation("CollectedByStaff", fields: [receivedByStaffId], references: [id], onDelete: SetNull)
+
+  allocations          PaymentAllocation[]
+
+  @@index([customerId])
+  @@index([loanId])
+  @@index([paymentDate])
+  @@index([allocationStatus])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id                  String            @id @default(uuid()) @db.VarChar(36)
+  paymentId           String            @db.VarChar(36)
+  repaymentScheduleId String            @db.VarChar(36)
+
+  principalAllocated  Decimal           @default(0.00) @db.Decimal(16, 2)
+  interestAllocated   Decimal           @default(0.00) @db.Decimal(16, 2)
+  feesAllocated       Decimal           @default(0.00) @db.Decimal(16, 2)
+  penaltyAllocated    Decimal           @default(0.00) @db.Decimal(16, 2)
+  totalAllocated      Decimal           @db.Decimal(16, 2)
+
+  allocatedAt         DateTime          @default(now())
+
+  payment             Payment           @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  repaymentSchedule   RepaymentSchedule @relation(fields: [repaymentScheduleId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId])
+  @@index([repaymentScheduleId])
+  @@map("payment_allocations")
+}
+
+// ------------------------------------------------------------------------------
+// 11. Penalties & Waivers
+// ------------------------------------------------------------------------------
+
+model Penalty {
+  id                  String            @id @default(uuid()) @db.VarChar(36)
+  loanId              String            @db.VarChar(36)
+  repaymentScheduleId String?           @db.VarChar(36)
+
+  penaltyType         PenaltyType       @default(LATE_PAYMENT)
+  reason              String            @db.VarChar(255)
+  assessedDate        DateTime          @default(now())
+  amount              Decimal           @db.Decimal(16, 2)
+  paidAmount          Decimal           @default(0.00) @db.Decimal(16, 2)
+  waivedAmount        Decimal           @default(0.00) @db.Decimal(16, 2)
+  remainingAmount     Decimal           @db.Decimal(16, 2)
+  status              PenaltyStatus     @default(ASSESSED)
+
+  waivedByStaffId     String?           @db.VarChar(36)
+  waiverReason        String?           @db.Text
+  waivedAt            DateTime?
+
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  loan                Loan              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  repaymentSchedule   RepaymentSchedule? @relation(fields: [repaymentScheduleId], references: [id], onDelete: SetNull)
+  waivedByStaff       Staff?            @relation("WaivedByStaff", fields: [waivedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+  @@index([repaymentScheduleId])
+  @@index([status])
+  @@map("penalties")
+}
+
+// ------------------------------------------------------------------------------
+// 12. Document Vault
+// ------------------------------------------------------------------------------
+
+model CustomerDocument {
+  id                 String                     @id @default(uuid()) @db.VarChar(36)
+  customerId         String                     @db.VarChar(36)
+  loanApplicationId  String?                    @db.VarChar(36)
+  loanId             String?                    @db.VarChar(36)
+
+  documentType       DocumentType               @default(NATIONAL_ID)
+  documentName       String                     @db.VarChar(180)
+  fileUrl            String                     @db.VarChar(500)
+  fileKey            String?                    @db.VarChar(255) // S3 object key or local path
+  fileSizeBytes      Int                        @db.Int
+  mimeType           String                     @db.VarChar(100)
+
+  verificationStatus DocumentVerificationStatus @default(PENDING)
+  verifiedByStaffId  String?                    @db.VarChar(36)
+  verifiedAt         DateTime?
+  rejectionReason    String?                    @db.Text
+
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  customer           Customer                   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  loanApplication    LoanApplication?           @relation(fields: [loanApplicationId], references: [id], onDelete: SetNull)
+  loan               Loan?                      @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  verifiedByStaff    Staff?                     @relation("VerifiedByStaff", fields: [verifiedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([loanApplicationId])
+  @@index([loanId])
+  @@index([verificationStatus])
+  @@map("customer_documents")
+}
+
+// ------------------------------------------------------------------------------
+// 13. Notifications
+// ------------------------------------------------------------------------------
+
+model Notification {
+  id         String              @id @default(uuid()) @db.VarChar(36)
+  userId     String              @db.VarChar(36)
+  customerId String?             @db.VarChar(36)
+  channel    NotificationChannel @default(IN_APP)
+  subject    String              @db.VarChar(200)
+  message    String              @db.Text
+  status     NotificationStatus  @default(SENT)
+  sentAt     DateTime            @default(now())
+  readAt     DateTime?
+  createdAt  DateTime            @default(now())
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer   Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([status])
+  @@map("notifications")
+}
+
+// ------------------------------------------------------------------------------
+// 14. Compliance Audit Trail
+// ------------------------------------------------------------------------------
+
+model AuditLog {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  userId            String?  @db.VarChar(36)
+  action            String   @db.VarChar(100) // e.g. "LOAN_APPLICATION_APPROVED", "PAYMENT_RECEIVED"
+  entity            String   @db.VarChar(80)  // Table/model name: "Loan", "Customer", "Payment"
+  entityId          String?  @db.VarChar(80)
+  previousValuesJson String? @db.LongText
+  newValuesJson     String?  @db.LongText
+  ipAddress         String?  @db.VarChar(45)
+  userAgent         String?  @db.VarChar(255)
+  timestamp         DateTime @default(now())
+
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------------------------------------------
+// 15. System Settings
+// ------------------------------------------------------------------------------
+
+model SystemSetting {
+  id              String             @id @default(uuid()) @db.VarChar(36)
+  key             String             @unique @db.VarChar(100)
+  value           String             @db.Text
+  description     String?            @db.VarChar(255)
+  group           SystemSettingGroup @default(GENERAL)
+  isEncrypted     Boolean            @default(false)
+  updatedByUserId String?            @db.VarChar(36)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  updatedByUser   User?              @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([group])
+  @@map("system_settings")
+}

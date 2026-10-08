@@ -1,0 +1,8 @@
+{
+  "name": "Nexa Loan Management System",
+  "description": "Enterprise-grade Loan Management System with role-based access control, loan origination, servicing, and audit logging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

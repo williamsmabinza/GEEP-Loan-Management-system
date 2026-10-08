@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nexa Loan Management System</title>
+    <meta name="description" content="Enterprise-grade Loan Management System with role-based access control, loan origination, servicing, and audit logging." />
+    <meta property="og:title" content="Nexa Loan Management System" />
+    <meta property="og:description" content="Enterprise-grade Loan Management System with role-based access control, loan origination, servicing, and audit logging." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Ignore benign Vite HMR WebSocket connection errors in sandboxed iframe environment
+      window.addEventListener('error', function(event) {
+        if (event.message && (event.message.includes('WebSocket') || event.message.includes('@vite/client') || event.message.includes('ModuleRunnerTransport'))) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = event.reason ? (event.reason.message || String(event.reason)) : '';
+        if (reason && (reason.includes('WebSocket') || reason.includes('@vite/client') || reason.includes('ModuleRunnerTransport'))) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
